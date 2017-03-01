@@ -1,6 +1,3 @@
-[submodule "ext/libchain"]
-	path = ext/libchain
-	url = https://github.com/CMUAbstract/libchain.git
 [submodule "ext/libio"]
 	path = ext/libio
 	url = https://github.com/CMUAbstract/libio.git
@@ -22,3 +19,6 @@
 [submodule "ext/libmspprintf"]
 	path = ext/libmspprintf
 	url = https://github.com/CMUAbstract/libmspprintf
+[submodule "ext/libchain"]
+	path = ext/libchain
+	url = https://github.com/soctar/multi-thread-chain.git
