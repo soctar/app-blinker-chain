@@ -13,6 +13,8 @@
 
 #include "pin_assign.h"
 
+#include <libchain/thread.h>
+
 #define INIT_TASK_DURATION_ITERS  400000
 #define TASK_START_DURATION_ITERS 1600000
 #define BLINK_DURATION_ITERS      400000
@@ -159,6 +161,7 @@ void task_1()
 
     CHAN_OUT1(unsigned, blinks, blinks, CH(task_1, task_2));
 
+    THREAD_CREATE(task_2);
     TRANSITION_TO(task_2);
 }
 
