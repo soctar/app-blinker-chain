@@ -90,12 +90,12 @@ void init()
     GPIO(PORT_LED_3, OUT) |= BIT(PIN_LED_3);
 #endif
 		PRINTF("Chain app booted!! \r\n"); 
-    LOG("chain app booted\r\n");
+    LOG("Done init: chain app booted\r\n");
 }
 
 static void blink_led1(unsigned blinks, unsigned duty_cycle) {
     unsigned i;
-
+	
     for (i = 0; i < blinks; ++i) {
         GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
         burn(BLINK_DURATION_ITERS * 2 * duty_cycle / 100);
@@ -118,7 +118,7 @@ static void blink_led2(unsigned blinks, unsigned duty_cycle) {
 }
 
 void task_init()
-{
+{		LOG("IN TASK INIT \r\n"); 
     task_prologue();
 		write_to_scheduler(thread, curctx); 	
 		//CHAN_OUT1(thread_t, threads[0].thread, curctx,  SELF_OUT_CH(scheduler_task));
