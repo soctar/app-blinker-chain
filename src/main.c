@@ -5,6 +5,7 @@
 
 #include <libwispbase/wisp-base.h>
 #include <libchain/chain.h>
+#include <libchain/thread.h>
 #include <libio/log.h>
 
 #ifdef CONFIG_LIBEDB_PRINTF
@@ -47,10 +48,16 @@ TASK(2, task_1)
 TASK(3, task_2)
 TASK(4, task_3)
 
-CHANNEL(task_init, task_1, msg_blinks);
+/*CHANNEL(task_init, task_1, msg_blinks);
 CHANNEL(task_init, task_3, msg_tick);
 CHANNEL(task_1, task_2, msg_blinks);
-CHANNEL(task_2, task_1, msg_blinks);
+CHANNEL(task_2, task_1, msg_blinks);*/
+CHANNEL_WT(task_init, task_1, 0, msg_blinks);  
+CHANNEL_WT(task_init, task_3, 0,  msg_tick);
+CHANNEL_WT(task_1, task_2, 0, msg_blinks);
+CHANNEL_WT(task_2, task_1, 0, msg_blinks);
+
+//SELF_CHANNEL(scheduler_task, thread_array); 
 SELF_CHANNEL(task_3, msg_self_tick);
 MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle, task_init, task_1, task_2);
 
@@ -80,7 +87,7 @@ void init()
 #if defined(PORT_LED_3) // when available, this LED indicates power-on
     GPIO(PORT_LED_3, OUT) |= BIT(PIN_LED_3);
 #endif
-
+		PRINTF("Chain app booted!! \r\n"); 
     LOG("chain app booted\r\n");
 }
 
@@ -111,8 +118,13 @@ static void blink_led2(unsigned blinks, unsigned duty_cycle) {
 void task_init()
 {
     task_prologue();
-
-    LOG("init\r\n");
+		write_to_scheduler(thread, curctx); 	
+		//CHAN_OUT1(thread_t, threads[0].thread, curctx,  SELF_OUT_CH(scheduler_task));
+		//Need to add scheduler init to task_init function 
+		thread_init(); 
+ 
+ 	
+		LOG("init\r\n");
 
     // Solid flash signifying beginning of task
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
@@ -123,9 +135,9 @@ void task_init()
     burn(INIT_TASK_DURATION_ITERS);
 
     unsigned blinks = NUM_BLINKS_PER_TASK;
-    CHAN_OUT1(unsigned, blinks, blinks, CH(task_init, task_1));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1, 0));
     unsigned tick = 0;
-    CHAN_OUT1(unsigned, tick, tick, CH(task_init, task_3));
+    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3, 0));
     unsigned duty_cycle = 75;
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
              MC_OUT_CH(ch_duty_cycle, task_init, task_1, task_2));
@@ -147,8 +159,10 @@ void task_1()
     burn(TASK_START_DURATION_ITERS);
     GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
     burn(TASK_START_DURATION_ITERS);
+		
 
-    blinks = *CHAN_IN2(unsigned, blinks, CH(task_init, task_1), CH(task_2, task_1));
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1, 0), CH_TH(task_2,
+											task_1, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle, task_init, task_1));
 
@@ -157,7 +171,7 @@ void task_1()
     blink_led1(blinks, duty_cycle);
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH(task_1, task_2));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1, task_2, 0));
 
     TRANSITION_TO(task_2);
 }
@@ -177,7 +191,7 @@ void task_2()
     GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
     burn(TASK_START_DURATION_ITERS);
 
-    blinks = *CHAN_IN1(unsigned, blinks, CH(task_1, task_2));
+    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1, task_2, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle, task_init, task_2));
 
@@ -186,7 +200,7 @@ void task_2()
     blink_led2(blinks, duty_cycle);
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH(task_2, task_1));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2, task_1, 0));
 
     TRANSITION_TO(task_3);
 }
@@ -195,7 +209,7 @@ void task_3()
 {
     task_prologue();
 
-    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH(task_init, task_3),
+    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3, 0),
                                                    SELF_IN_CH(task_3));
 
     LOG("task 3: wait tick %u\r\n", wait_tick);
