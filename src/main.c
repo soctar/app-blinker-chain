@@ -148,7 +148,8 @@ void task_init()
              MC_OUT_CH(ch_duty_cycle, task_init, task_1, task_2));
 
     LOG("LED\r\n");
-    TRANSITION_TO(task_3);
+  	TRANSITION_TO_MT(task_3); 
+	 //TRANSITION_TO(task_3);
 }
 
 void task_1()
@@ -167,8 +168,7 @@ void task_1()
     burn(TASK_START_DURATION_ITERS);
 
 
-    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1, 0), CH_TH(task_2,
-											task_1, 0));
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1, 0), CH_TH(task_2, task_1, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle, task_init, task_1));
 
@@ -180,7 +180,8 @@ void task_1()
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1, task_2, 0));
 
     THREAD_CREATE(task_2);
-    TRANSITION_TO(task_2);
+    TRANSITION_TO_MT(task_2);
+    //TRANSITION_TO(task_2);
 }
 
 void task_2()
@@ -208,8 +209,10 @@ void task_2()
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2, task_1, 0));
+    
+		TRANSITION_TO_MT(task_3);
 
-    TRANSITION_TO(task_3);
+		//    TRANSITION_TO(task_3);
 }
 
 void task_3()
@@ -231,11 +234,16 @@ void task_3()
 
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3));
-        TRANSITION_TO(task_3);
+       
+			 	TRANSITION_TO_MT(task_3);
+        //TRANSITION_TO(task_3);
     } else {
         unsigned tick = 0;
         CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3));
-        TRANSITION_TO(task_1);
+        
+				TRANSITION_TO_MT(task_1);
+        //TRANSITION_TO(task_1);
+				
     }
 }
 
