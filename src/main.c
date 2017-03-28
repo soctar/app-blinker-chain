@@ -119,11 +119,8 @@ static void blink_led2(unsigned blinks, unsigned duty_cycle) {
 
 void task_init()
 {
-    LOG("IN TASK INIT \r\n");
+    LOG("\r\nIN TASK INIT \r\n");
     task_prologue();
-    LOG("prologue \r\n");
-    write_to_scheduler(thread, curctx);
-    LOG("scheduler \r\n");
     //CHAN_OUT1(thread_t, threads[0].thread, curctx,  SELF_OUT_CH(scheduler_task));
     //Need to add scheduler init to task_init function
     thread_init();
@@ -148,7 +145,7 @@ void task_init()
              MC_OUT_CH(ch_duty_cycle, task_init, task_1, task_2));
 
     LOG("LED\r\n");
-  	TRANSITION_TO_MT(task_3); 
+  	TRANSITION_TO_MT(task_3);
 	 //TRANSITION_TO(task_3);
 }
 
@@ -209,10 +206,10 @@ void task_2()
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2, task_1, 0));
-    
-		TRANSITION_TO_MT(task_3);
 
-		//    TRANSITION_TO(task_3);
+	TRANSITION_TO_MT(task_3);
+
+	//TRANSITION_TO(task_3);
 }
 
 void task_3()
@@ -234,16 +231,16 @@ void task_3()
 
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3));
-       
-			 	TRANSITION_TO_MT(task_3);
+
+	  	TRANSITION_TO_MT(task_3);
         //TRANSITION_TO(task_3);
     } else {
         unsigned tick = 0;
         CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3));
-        
-				TRANSITION_TO_MT(task_1);
+
+		TRANSITION_TO_MT(task_1);
         //TRANSITION_TO(task_1);
-				
+
     }
 }
 
