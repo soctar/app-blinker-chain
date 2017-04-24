@@ -46,22 +46,33 @@ struct msg_duty_cycle {
 };
 
 TASK(1, task_init)
-TASK(2, task_1)
-TASK(3, task_2)
-TASK(4, task_3)
+TASK(2, task_1_r)
+TASK(3, task_2_r)
+TASK(4, task_3_r)
+
+TASK(5, task_1_g)
+TASK(6, task_2_g)
+TASK(7, task_3_g)
 
 /*CHANNEL(task_init, task_1, msg_blinks);
 CHANNEL(task_init, task_3, msg_tick);
 CHANNEL(task_1, task_2, msg_blinks);
 CHANNEL(task_2, task_1, msg_blinks);*/
-CHANNEL_WT(task_init, task_1, 0, msg_blinks);
-CHANNEL_WT(task_init, task_3, 0,  msg_tick);
-CHANNEL_WT(task_1, task_2, 0, msg_blinks);
-CHANNEL_WT(task_2, task_1, 0, msg_blinks);
+CHANNEL_WT(task_init, task_1_r, 0, msg_blinks);
+CHANNEL_WT(task_init, task_3_r, 0,  msg_tick);
+CHANNEL_WT(task_1_r, task_2_r, 0, msg_blinks);
+CHANNEL_WT(task_2_r, task_1_r, 0, msg_blinks);
 
-//SELF_CHANNEL(scheduler_task, thread_array);
-SELF_CHANNEL(task_3, msg_self_tick);
-MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle, task_init, task_1, task_2);
+CHANNEL_WT(task_init, task_1_g, 0, msg_blinks); 
+CHANNEL_WT(task_init, task_3_g, 0, msg_tick); 
+CHANNEL_WT(task_1_g, task_2_g, 0, msg_blinks); 
+CHANNEL_WT(task_2_g, task_1_g, 0, msg_blinks); 
+
+SELF_CHANNEL(task_3_g, msg_self_tick); 
+SELF_CHANNEL(task_3_r, msg_self_tick);
+
+MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle_r, task_init, task_1_r, task_2_r);
+MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle_g, task_init, task_1_g, task_2_g);
 
 volatile unsigned work_x;
 
@@ -137,26 +148,34 @@ void task_init()
     burn(INIT_TASK_DURATION_ITERS);
 
     unsigned blinks = NUM_BLINKS_PER_TASK;
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_r, 0));
     unsigned tick = 0;
-    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3, 0));
+    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3_r, 0));
     unsigned duty_cycle = 75;
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
-             MC_OUT_CH(ch_duty_cycle, task_init, task_1, task_2));
+             MC_OUT_CH(ch_duty_cycle_r, task_init, task_1_r, task_2_r));
+    
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_g, 0));
+    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3_g, 0));
+    CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
+             MC_OUT_CH(ch_duty_cycle_g, task_init, task_1_g, task_2_g));
+
 
     LOG("LED\r\n");
-  	TRANSITION_TO_MT(task_3);
-	 //TRANSITION_TO(task_3);
+    //insert thread create!!
+  	THREAD_CREATE(task_3_g); 
+    THREAD_CREATE(task_3_r);
+    TRANSITION_TO_MT(task_3_r);
 }
 
-void task_1()
+void task_1_r()
 {
     task_prologue();
 
     unsigned blinks;
     unsigned duty_cycle;
 
-    LOG("task 1\r\n");
+    LOG("task 1_r\r\n");
 
     // Solid flash signifying beginning of task
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
@@ -165,30 +184,32 @@ void task_1()
     burn(TASK_START_DURATION_ITERS);
 
 
-    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1, 0), CH_TH(task_2, task_1, 0));
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_r, 0), CH_TH(task_2_r, task_1_r, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
-                           MC_IN_CH(ch_duty_cycle, task_init, task_1));
+                           MC_IN_CH(ch_duty_cycle_r, task_init, task_1_r));
 
     LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led1(blinks, duty_cycle);
+    if(blinks > 8)
+      blinks = 0;
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1, task_2, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_r, task_2_r, 0));
 
-    THREAD_CREATE(task_2);
-    TRANSITION_TO_MT(task_2);
+    //THREAD_CREATE(task_2_r);
+    TRANSITION_TO_MT(task_2_r);
     //TRANSITION_TO(task_2);
 }
 
-void task_2()
+void task_2_r()
 {
     task_prologue();
 
     unsigned blinks;
     unsigned duty_cycle;
 
-    LOG("task 2\r\n");
+    LOG("task 2_r\r\n");
 
     // Solid flash signifying beginning of task
     GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
@@ -196,29 +217,31 @@ void task_2()
     GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
     burn(TASK_START_DURATION_ITERS);
 
-    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1, task_2, 0));
+    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1_r, task_2_r, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
-                           MC_IN_CH(ch_duty_cycle, task_init, task_2));
+                           MC_IN_CH(ch_duty_cycle_r, task_init, task_2_r));
 
     LOG("task 2: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led2(blinks, duty_cycle);
+    if(blinks > 8)
+      blinks = 0;
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2, task_1, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_r, task_1_r, 0));
 
-	TRANSITION_TO_MT(task_3);
+	TRANSITION_TO_MT(task_3_r);
 
 	//TRANSITION_TO(task_3);
 }
 
-void task_3()
+void task_3_r()
 {
     task_prologue();
-    LOG("task 3 prologue\r\n");
+    LOG("task 3 r prologue\r\n");
 
-    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3, 0),
-                                                   SELF_IN_CH(task_3));
+    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3_r, 0),
+                                                   SELF_IN_CH(task_3_r));
 
     LOG("task 3: wait tick %u\r\n", wait_tick);
 
@@ -230,15 +253,114 @@ void task_3()
     burn(WAIT_TICK_DURATION_ITERS);
 
     if (++wait_tick < WAIT_TICKS) {
-        CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3));
+        CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_r));
 
-	  	TRANSITION_TO_MT(task_3);
+	  	TRANSITION_TO_MT(task_3_r);
         //TRANSITION_TO(task_3);
     } else {
         unsigned tick = 0;
-        CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3));
+        CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3_r));
 
-		TRANSITION_TO_MT(task_1);
+		TRANSITION_TO_MT(task_1_r);
+        //TRANSITION_TO(task_1);
+
+    }
+}
+
+void task_1_g()
+{
+    task_prologue();
+
+    unsigned blinks;
+    unsigned duty_cycle;
+
+    LOG("task 1_g\r\n");
+
+    // Solid flash signifying beginning of task
+    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+    burn(TASK_START_DURATION_ITERS);
+    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+    burn(TASK_START_DURATION_ITERS);
+
+
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_g, 0), CH_TH(task_2_g, task_1_g, 0));
+    duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
+                           MC_IN_CH(ch_duty_cycle_r, task_init, task_1_g));
+
+    LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
+
+    blink_led1(blinks, duty_cycle);
+    if(blinks > 8)
+      blinks = 0;
+    blinks++;
+
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_g, task_2_g, 0));
+
+    THREAD_CREATE(task_2_g);
+    TRANSITION_TO_MT(task_2_g);
+    //TRANSITION_TO(task_2);
+}
+
+void task_2_g()
+{
+    task_prologue();
+
+    unsigned blinks;
+    unsigned duty_cycle;
+
+    LOG("task 2_g\r\n");
+
+    // Solid flash signifying beginning of task
+    GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
+    burn(TASK_START_DURATION_ITERS);
+    GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
+    burn(TASK_START_DURATION_ITERS);
+
+    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1_g, task_2_g, 0));
+    duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
+                           MC_IN_CH(ch_duty_cycle_r, task_init, task_2_g));
+
+    LOG("task 2_g: blinks %u dc %u\r\n", blinks, duty_cycle);
+
+    blink_led2(blinks, duty_cycle);
+    if(blinks > 8)
+      blinks = 0;
+    blinks++;
+
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_g, task_1_g, 0));
+
+	TRANSITION_TO_MT(task_3_g);
+
+	//TRANSITION_TO(task_3);
+}
+
+void task_3_g()
+{
+    task_prologue();
+    LOG("task 3_g prologue\r\n");
+
+    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3_g, 0),
+                                                   SELF_IN_CH(task_3_g));
+
+    LOG("task 3: wait tick %u\r\n", wait_tick);
+
+    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+    GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
+    burn(WAIT_TICK_DURATION_ITERS);
+    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+    GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
+    burn(WAIT_TICK_DURATION_ITERS);
+
+    if (++wait_tick < WAIT_TICKS) {
+        CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_g));
+
+	  	TRANSITION_TO_MT(task_3_g);
+        //TRANSITION_TO(task_3);
+    } else {
+        unsigned tick = 0;
+        CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3_g));
+
+		TRANSITION_TO_MT(task_1_g);
         //TRANSITION_TO(task_1);
 
     }
