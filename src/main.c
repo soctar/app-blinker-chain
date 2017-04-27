@@ -15,6 +15,7 @@
 #include "pin_assign.h"
 
 #include <libchain/thread.h>
+#include <libchain/mutex.h>
 
 #define INIT_TASK_DURATION_ITERS  400000
 #define TASK_START_DURATION_ITERS 1600000
@@ -45,6 +46,12 @@ struct msg_duty_cycle {
     CHAN_FIELD(unsigned, duty_cycle);
 };
 
+struct shared_data_struct{
+    CHAN_FIELD(unsigned, data1); 
+    CHAN_FIELD(unsigned, data2); 
+    CHAN_FIELD(mutex_t, lock); 
+}; 
+
 TASK(1, task_init)
 TASK(2, task_1_r)
 TASK(3, task_2_r)
@@ -53,11 +60,8 @@ TASK(4, task_3_r)
 TASK(5, task_1_g)
 TASK(6, task_2_g)
 TASK(7, task_3_g)
+TASK(8, task_shared) 
 
-/*CHANNEL(task_init, task_1, msg_blinks);
-CHANNEL(task_init, task_3, msg_tick);
-CHANNEL(task_1, task_2, msg_blinks);
-CHANNEL(task_2, task_1, msg_blinks);*/
 CHANNEL_WT(task_init, task_1_r, 0, msg_blinks);
 CHANNEL_WT(task_init, task_3_r, 0,  msg_tick);
 CHANNEL_WT(task_1_r, task_2_r, 0, msg_blinks);
@@ -70,6 +74,8 @@ CHANNEL_WT(task_2_g, task_1_g, 0, msg_blinks);
 
 SELF_CHANNEL(task_3_g, msg_self_tick); 
 SELF_CHANNEL(task_3_r, msg_self_tick);
+// Broken channel
+CHANNEL(task_shared, task_init, shared_data_struct); 
 
 MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle_r, task_init, task_1_r, task_2_r);
 MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle_g, task_init, task_1_g, task_2_g);
@@ -128,6 +134,12 @@ static void blink_led2(unsigned blinks, unsigned duty_cycle) {
     }
 }
 
+// Dummy task for shared variables
+// TODO hide this from user space
+void task_shared(){
+    return; 
+}
+
 void task_init()
 {
     LOG("\r\nIN TASK INIT \r\n");
@@ -135,8 +147,12 @@ void task_init()
     //CHAN_OUT1(thread_t, threads[0].thread, curctx,  SELF_OUT_CH(scheduler_task));
     //Need to add scheduler init to task_init function
     thread_init();
-
-
+    unsigned data_init = 0; 
+    CHAN_OUT1(unsigned,data1, data_init, CH(task_shared, task_init)); 
+    CHAN_OUT1(unsigned,data2, data_init, CH(task_shared, task_init)); 
+    mutex_t *temp = CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
+    mutex_init(temp); 
+    CHAN_OUT1(mutex_t, lock, temp, CH(task_shared,task_init)); 
     LOG("init\r\n");
 
     // Solid flash signifying beginning of task
@@ -175,6 +191,12 @@ void task_1_r()
     unsigned blinks;
     unsigned duty_cycle;
 
+    mutex_t test = CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
+    unsigned cur_id = get_current();  
+    mutex_lock(test,id);  
+    unsigned data1 = CHAN_IN1(unsigned, data1, CH(task_shared,task_init)); 
+    unsigned data2 = CHAN_IN1(unsigned, data2, CH(task_shared,task_init)); 
+    
     LOG("task 1_r\r\n");
 
     // Solid flash signifying beginning of task
@@ -191,8 +213,10 @@ void task_1_r()
     LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led1(blinks, duty_cycle);
+    /*
     if(blinks > 8)
       blinks = 0;
+    */
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_r, task_2_r, 0));
@@ -224,8 +248,9 @@ void task_2_r()
     LOG("task 2: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led2(blinks, duty_cycle);
+    
     if(blinks > 8)
-      blinks = 0;
+      THREAD_END(); 
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_r, task_1_r, 0));
@@ -290,8 +315,10 @@ void task_1_g()
     LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led1(blinks, duty_cycle);
-    if(blinks > 8)
+   /* 
+      if(blinks > 8)
       blinks = 0;
+    */
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_g, task_2_g, 0));
@@ -323,8 +350,8 @@ void task_2_g()
     LOG("task 2_g: blinks %u dc %u\r\n", blinks, duty_cycle);
 
     blink_led2(blinks, duty_cycle);
-    if(blinks > 8)
-      blinks = 0;
+    if(blinks > 12)
+      THREAD_END(); 
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_g, task_1_g, 0));
