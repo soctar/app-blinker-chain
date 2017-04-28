@@ -179,8 +179,8 @@ void task_init()
 
     LOG("LED\r\n");
     //insert thread create!!
-  	THREAD_CREATE(task_3_g); 
     THREAD_CREATE(task_3_r);
+  	THREAD_CREATE(task_3_g); 
     TRANSITION_TO_MT(task_3_r);
 }
 
@@ -190,21 +190,13 @@ void task_1_r()
 
     unsigned blinks;
     unsigned duty_cycle;
-
-    mutex_t test = CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
-    unsigned cur_id = get_current();  
-    mutex_lock(test,id);  
-    unsigned data1 = CHAN_IN1(unsigned, data1, CH(task_shared,task_init)); 
-    unsigned data2 = CHAN_IN1(unsigned, data2, CH(task_shared,task_init)); 
     
     LOG("task 1_r\r\n");
 
-    // Solid flash signifying beginning of task
-    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
-    burn(TASK_START_DURATION_ITERS);
-    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
-    burn(TASK_START_DURATION_ITERS);
-
+    mutex_t lock = *CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
+    unsigned data1 = *CHAN_IN1(unsigned, data1, CH(task_shared,task_init)); 
+    unsigned data2 = *CHAN_IN1(unsigned, data2, CH(task_shared,task_init)); 
+    
 
     blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_r, 0), CH_TH(task_2_r, task_1_r, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
@@ -217,11 +209,18 @@ void task_1_r()
     if(blinks > 8)
       blinks = 0;
     */
+      
     blinks++;
+    if(blinks > 6)
+      mutex_unlock(&lock);  
+    else
+      mutex_lock(&lock);  
 
+    CHAN_OUT1(mutex_t, lock, lock, CH(task_shared, task_init));
+    CHAN_OUT1(unsigned, data1, data1, CH(task_shared, task_init));
+    CHAN_OUT1(unsigned, data2, data2, CH(task_shared, task_init));
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_r, task_2_r, 0));
-
-    //THREAD_CREATE(task_2_r);
+    
     TRANSITION_TO_MT(task_2_r);
     //TRANSITION_TO(task_2);
 }
@@ -300,7 +299,8 @@ void task_1_g()
     unsigned duty_cycle;
 
     LOG("task 1_g\r\n");
-
+    mutex_t lock = *CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
+    mutex_lock(&lock); 
     // Solid flash signifying beginning of task
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
     burn(TASK_START_DURATION_ITERS);
