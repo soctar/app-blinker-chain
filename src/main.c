@@ -83,6 +83,30 @@ static void burn(uint32_t iters)
         work_x++;
 }
 
+
+// Setup up the timer to fire when CCR0 is loaded with 50000
+// from msp430fr59xx_ta0_02.c
+static void setup_timer_interrupt() {
+  WDTCTL = WDTPW | WDTHOLD;                 // Stop WDT
+
+  // Configure GPIO
+  P1DIR |= BIT0;
+  P1OUT |= BIT0;
+
+  // Disable the GPIO power-on default high-impedance mode to activate
+  // previously configured port settings
+  PM5CTL0 &= ~LOCKLPM5;
+
+  TA0CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+  TA0CCR0 = 50000;
+  TA0CTL = TASSEL__SMCLK | MC__UP;          // SMCLK, UP mode
+
+  // TODO - does this set the global interrupt flag?
+  __bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 w/ interrupt
+  __no_operation();                         // For debugger (TODO - needed?)
+}
+
+
 void init()
 {
     WISP_init();
@@ -95,6 +119,7 @@ void init()
 
     INIT_CONSOLE();
 
+    setup_timer_interrupt();
     if (!in_interrupt_handler()) {
         __enable_interrupt();
     }
