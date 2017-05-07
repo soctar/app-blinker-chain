@@ -50,7 +50,7 @@ TASK(2, task_1_r)
 TASK(3, task_2_r)
 TASK(4, task_3_r)
 
-TASK(5, task_1_g)
+INTERRUPT_TASK(5, task_1_g)
 TASK(6, task_2_g)
 TASK(7, task_3_g)
 
@@ -63,12 +63,12 @@ CHANNEL_WT(task_init, task_3_r, 0,  msg_tick);
 CHANNEL_WT(task_1_r, task_2_r, 0, msg_blinks);
 CHANNEL_WT(task_2_r, task_1_r, 0, msg_blinks);
 
-CHANNEL_WT(task_init, task_1_g, 0, msg_blinks); 
-CHANNEL_WT(task_init, task_3_g, 0, msg_tick); 
-CHANNEL_WT(task_1_g, task_2_g, 0, msg_blinks); 
-CHANNEL_WT(task_2_g, task_1_g, 0, msg_blinks); 
+CHANNEL_WT(task_init, task_1_g, 0, msg_blinks);
+CHANNEL_WT(task_init, task_3_g, 0, msg_tick);
+CHANNEL_WT(task_1_g, task_2_g, 0, msg_blinks);
+CHANNEL_WT(task_2_g, task_1_g, 0, msg_blinks);
 
-SELF_CHANNEL(task_3_g, msg_self_tick); 
+SELF_CHANNEL(task_3_g, msg_self_tick);
 SELF_CHANNEL(task_3_r, msg_self_tick);
 
 MULTICAST_CHANNEL(msg_duty_cycle, ch_duty_cycle_r, task_init, task_1_r, task_2_r);
@@ -95,7 +95,9 @@ void init()
 
     INIT_CONSOLE();
 
-    __enable_interrupt();
+    if (!in_interrupt_handler()) {
+        __enable_interrupt();
+    }
 
 #if defined(PORT_LED_3) // when available, this LED indicates power-on
     GPIO(PORT_LED_3, OUT) |= BIT(PIN_LED_3);
@@ -154,16 +156,17 @@ void task_init()
     unsigned duty_cycle = 75;
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
              MC_OUT_CH(ch_duty_cycle_r, task_init, task_1_r, task_2_r));
-    
+
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_g, 0));
     CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3_g, 0));
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
              MC_OUT_CH(ch_duty_cycle_g, task_init, task_1_g, task_2_g));
 
+    /** Channels for green task are written, ready to recieve interrupts */
+    INT_SETUP_COMPLETE();
 
     LOG("LED\r\n");
-    //insert thread create!!
-  	THREAD_CREATE(task_3_g); 
+    // TODO This will create two red tasks right? TT should be task_end
     THREAD_CREATE(task_3_r);
     TRANSITION_TO_MT(task_3_r);
 }
@@ -184,7 +187,8 @@ void task_1_r()
     burn(TASK_START_DURATION_ITERS);
 
 
-    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_r, 0), CH_TH(task_2_r, task_1_r, 0));
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_r, 0),
+           CH_TH(task_2_r, task_1_r, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle_r, task_init, task_1_r));
 
@@ -230,9 +234,7 @@ void task_2_r()
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_r, task_1_r, 0));
 
-	TRANSITION_TO_MT(task_3_r);
-
-	//TRANSITION_TO(task_3);
+    TRANSITION_TO_MT(task_3_r);
 }
 
 void task_3_r()
@@ -255,15 +257,13 @@ void task_3_r()
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_r));
 
-	  	TRANSITION_TO_MT(task_3_r);
+        TRANSITION_TO_MT(task_3_r);
         //TRANSITION_TO(task_3);
     } else {
         unsigned tick = 0;
         CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3_r));
 
-		TRANSITION_TO_MT(task_1_r);
-        //TRANSITION_TO(task_1);
-
+        TRANSITION_TO_MT(task_1_r);
     }
 }
 
@@ -329,9 +329,9 @@ void task_2_g()
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_g, task_1_g, 0));
 
-	TRANSITION_TO_MT(task_3_g);
+    TRANSITION_TO_MT(task_3_g);
 
-	//TRANSITION_TO(task_3);
+    //TRANSITION_TO(task_3);
 }
 
 void task_3_g()
@@ -354,15 +354,12 @@ void task_3_g()
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_g));
 
-	  	TRANSITION_TO_MT(task_3_g);
-        //TRANSITION_TO(task_3);
+        TRANSITION_TO_MT(task_3_g);
     } else {
         unsigned tick = 0;
         CHAN_OUT1(unsigned, tick, tick, SELF_OUT_CH(task_3_g));
 
-		TRANSITION_TO_MT(task_1_g);
-        //TRANSITION_TO(task_1);
-
+        IRET();
     }
 }
 
