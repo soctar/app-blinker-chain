@@ -101,8 +101,6 @@ static void setup_timer_interrupt() {
   TA0CCR0 = 50000;
   TA0CTL = TASSEL__SMCLK | MC__UP;          // SMCLK, UP mode
 
-  // TODO - does this set the global interrupt flag?
-  __bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 w/ interrupt
   __no_operation();                         // For debugger (TODO - needed?)
 }
 
