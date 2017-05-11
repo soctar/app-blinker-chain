@@ -59,18 +59,18 @@ TASK(4, task_3_r)
 
 TASK(5, task_1_g)
 TASK(6, task_2_g)
-TASK(7, task_3_g)
-TASK(8, task_shared) 
+TASK_EXT(7, task_3_g)
+TASK_EXT(16, task_shared) 
 
 CHANNEL_WT(task_init, task_1_r, 0, msg_blinks);
 CHANNEL_WT(task_init, task_3_r, 0,  msg_tick);
 CHANNEL_WT(task_1_r, task_2_r, 0, msg_blinks);
 CHANNEL_WT(task_2_r, task_1_r, 0, msg_blinks);
 
-CHANNEL_WT(task_init, task_1_g, 0, msg_blinks); 
-CHANNEL_WT(task_init, task_3_g, 0, msg_tick); 
-CHANNEL_WT(task_1_g, task_2_g, 0, msg_blinks); 
-CHANNEL_WT(task_2_g, task_1_g, 0, msg_blinks); 
+CHANNEL_WT(task_init, task_1_g, 1, msg_blinks); 
+CHANNEL_WT(task_init, task_3_g, 1, msg_tick); 
+CHANNEL_WT(task_1_g, task_2_g, 1, msg_blinks); 
+CHANNEL_WT(task_2_g, task_1_g, 1, msg_blinks); 
 
 SELF_CHANNEL(task_3_g, msg_self_tick); 
 SELF_CHANNEL(task_3_r, msg_self_tick);
@@ -92,21 +92,21 @@ static void burn(uint32_t iters)
 void init()
 {
     WISP_init();
-
+/*
     GPIO(PORT_LED_1, DIR) |= BIT(PIN_LED_1);
     GPIO(PORT_LED_2, DIR) |= BIT(PIN_LED_2);
 #if defined(PORT_LED_3)
     GPIO(PORT_LED_3, DIR) |= BIT(PIN_LED_3);
 #endif
-
+*/
     INIT_CONSOLE();
 
     __enable_interrupt();
-
+/*
 #if defined(PORT_LED_3) // when available, this LED indicates power-on
     GPIO(PORT_LED_3, OUT) |= BIT(PIN_LED_3);
 #endif
-
+*/
     //LOG("main.c Done init(): chain app booted\r\n");
 }
 
@@ -156,12 +156,12 @@ void task_init()
     LOG("init\r\n");
 
     // Solid flash signifying beginning of task
-    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
-    GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
-    burn(INIT_TASK_DURATION_ITERS);
-    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
-    GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
-    burn(INIT_TASK_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+    //GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
+    //burn(INIT_TASK_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+    //GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
+    //burn(INIT_TASK_DURATION_ITERS);
 
     unsigned blinks = NUM_BLINKS_PER_TASK;
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_r, 0));
@@ -171,8 +171,9 @@ void task_init()
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
              MC_OUT_CH(ch_duty_cycle_r, task_init, task_1_r, task_2_r));
     
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_g, 0));
-    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3_g, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_init, task_1_g, 1));
+    CHAN_OUT1(unsigned, tick, tick, CH_TH(task_init, task_3_g, 1));
+    //TODO Make sure this isn't just writing junk
     CHAN_OUT1(unsigned, duty_cycle, duty_cycle,
              MC_OUT_CH(ch_duty_cycle_g, task_init, task_1_g, task_2_g));
 
@@ -204,14 +205,14 @@ void task_1_r()
 
     LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
 
-    blink_led1(blinks, duty_cycle);
+    //blink_led1(blinks, duty_cycle);
     /*
     if(blinks > 8)
       blinks = 0;
     */
       
     blinks++;
-    if(blinks > 6)
+    if(blinks > 50)
       mutex_unlock(&lock);  
     else
       mutex_lock(&lock);  
@@ -235,21 +236,24 @@ void task_2_r()
     LOG("task 2_r\r\n");
 
     // Solid flash signifying beginning of task
+    /*
     GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
     burn(TASK_START_DURATION_ITERS);
     GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
     burn(TASK_START_DURATION_ITERS);
-
+    */
     blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1_r, task_2_r, 0));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle_r, task_init, task_2_r));
 
     LOG("task 2: blinks %u dc %u\r\n", blinks, duty_cycle);
 
-    blink_led2(blinks, duty_cycle);
+    //blink_led2(blinks, duty_cycle);
     
-    if(blinks > 8)
+    if(blinks > 75)
+    { PRINTF("Ending red thread!\r\n"); 
       THREAD_END(); 
+    }
     blinks++;
 
     CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_r, task_1_r, 0));
@@ -269,12 +273,12 @@ void task_3_r()
 
     LOG("task 3: wait tick %u\r\n", wait_tick);
 
-    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
-    GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
-    burn(WAIT_TICK_DURATION_ITERS);
-    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
-    GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
-    burn(WAIT_TICK_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+    //GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
+    //burn(WAIT_TICK_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+    //GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
+    //burn(WAIT_TICK_DURATION_ITERS);
 
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_r));
@@ -302,28 +306,28 @@ void task_1_g()
     mutex_t lock = *CHAN_IN1(mutex_t, lock, CH(task_shared, task_init)); 
     mutex_lock(&lock); 
     // Solid flash signifying beginning of task
-    GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
-    burn(TASK_START_DURATION_ITERS);
-    GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
-    burn(TASK_START_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
+    //burn(TASK_START_DURATION_ITERS);
+    //GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
+    //burn(TASK_START_DURATION_ITERS);
 
 
-    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_g, 0), CH_TH(task_2_g, task_1_g, 0));
+    blinks = *CHAN_IN2(unsigned, blinks, CH_TH(task_init, task_1_g, 1), CH_TH(task_2_g, task_1_g, 1));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle_r, task_init, task_1_g));
 
     LOG("task 1: blinks %u dc %u\r\n", blinks, duty_cycle);
 
-    blink_led1(blinks, duty_cycle);
+    //blink_led1(blinks, duty_cycle);
    /* 
       if(blinks > 8)
       blinks = 0;
     */
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_g, task_2_g, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_1_g, task_2_g, 1));
 
-    THREAD_CREATE(task_2_g);
+    //THREAD_CREATE(task_2_g);
     TRANSITION_TO_MT(task_2_g);
     //TRANSITION_TO(task_2);
 }
@@ -338,23 +342,25 @@ void task_2_g()
     LOG("task 2_g\r\n");
 
     // Solid flash signifying beginning of task
-    GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
-    burn(TASK_START_DURATION_ITERS);
-    GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
-    burn(TASK_START_DURATION_ITERS);
+    //GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
+    //burn(TASK_START_DURATION_ITERS);
+    //GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
+    //burn(TASK_START_DURATION_ITERS);
 
-    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1_g, task_2_g, 0));
+    blinks = *CHAN_IN1(unsigned, blinks, CH_TH(task_1_g, task_2_g, 1));
     duty_cycle = *CHAN_IN1(unsigned, duty_cycle,
                            MC_IN_CH(ch_duty_cycle_r, task_init, task_2_g));
 
     LOG("task 2_g: blinks %u dc %u\r\n", blinks, duty_cycle);
 
-    blink_led2(blinks, duty_cycle);
-    if(blinks > 12)
+    //blink_led2(blinks, duty_cycle);
+    if(blinks > 100)
+    { PRINTF("Green thread end!\r\n"); 
       THREAD_END(); 
+    }
     blinks++;
 
-    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_g, task_1_g, 0));
+    CHAN_OUT1(unsigned, blinks, blinks, CH_TH(task_2_g, task_1_g, 1));
 
 	TRANSITION_TO_MT(task_3_g);
 
@@ -366,18 +372,18 @@ void task_3_g()
     task_prologue();
     LOG("task 3_g prologue\r\n");
 
-    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3_g, 0),
+    unsigned wait_tick = *CHAN_IN2(unsigned, tick, CH_TH(task_init, task_3_g, 1),
                                                    SELF_IN_CH(task_3_g));
 
     LOG("task 3: wait tick %u\r\n", wait_tick);
-
+    /*
     GPIO(PORT_LED_1, OUT) |= BIT(PIN_LED_1);
     GPIO(PORT_LED_2, OUT) |= BIT(PIN_LED_2);
     burn(WAIT_TICK_DURATION_ITERS);
     GPIO(PORT_LED_1, OUT) &= ~BIT(PIN_LED_1);
     GPIO(PORT_LED_2, OUT) &= ~BIT(PIN_LED_2);
     burn(WAIT_TICK_DURATION_ITERS);
-
+    */
     if (++wait_tick < WAIT_TICKS) {
         CHAN_OUT1(unsigned, tick, wait_tick, SELF_OUT_CH(task_3_g));
 
